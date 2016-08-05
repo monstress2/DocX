@@ -1375,7 +1375,7 @@ namespace Novacode
 
         }
 
-        private void merge_images(PackagePart remote_pp, DocX remote_document, XDocument remote_mainDoc, String contentType)
+        internal void merge_images(PackagePart remote_pp, DocX remote_document, XDocument remote_mainDoc, String contentType)
         {
             // Before doing any other work, check to see if this image is actually referenced in the document.
             // In my testing I have found cases of Images inside documents that are not referenced
@@ -1528,7 +1528,7 @@ namespace Novacode
             return sb.ToString();
         }
 
-        private void merge_endnotes(PackagePart remote_pp, PackagePart local_pp, XDocument remote_mainDoc, DocX remote, XDocument remote_endnotes)
+        internal void merge_endnotes(PackagePart remote_pp, PackagePart local_pp, XDocument remote_mainDoc, DocX remote, XDocument remote_endnotes)
         {
             IEnumerable<int> ids =
             (
@@ -1566,7 +1566,7 @@ namespace Novacode
             }
         }
 
-        private void merge_footnotes(PackagePart remote_pp, PackagePart local_pp, XDocument remote_mainDoc, DocX remote, XDocument remote_footnotes)
+        internal void merge_footnotes(PackagePart remote_pp, PackagePart local_pp, XDocument remote_mainDoc, DocX remote, XDocument remote_footnotes)
         {
             IEnumerable<int> ids =
             (
@@ -1604,7 +1604,7 @@ namespace Novacode
             }
         }
 
-        private void merge_customs(PackagePart remote_pp, PackagePart local_pp, XDocument remote_mainDoc)
+        internal void merge_customs(PackagePart remote_pp, PackagePart local_pp, XDocument remote_mainDoc)
         {
             // Get the remote documents custom.xml file.
             XDocument remote_custom_document;
@@ -1651,7 +1651,7 @@ namespace Novacode
                 local_custom_document.Save(tw, SaveOptions.None);
         }
 
-        private void merge_numbering(PackagePart remote_pp, PackagePart local_pp, XDocument remote_mainDoc, DocX remote)
+        internal void merge_numbering(PackagePart remote_pp, PackagePart local_pp, XDocument remote_mainDoc, DocX remote)
         {
             // Add each remote numbering to this document.
             IEnumerable<XElement> remote_abstractNums = remote.numbering.Root.Elements(XName.Get("abstractNum", DocX.w.NamespaceName));
@@ -1733,7 +1733,7 @@ namespace Novacode
                 numbering.Root.Elements(XName.Get("num", DocX.w.NamespaceName)).Last().AddAfterSelf(remote_nums);
         }
 
-        private void merge_fonts(PackagePart remote_pp, PackagePart local_pp, XDocument remote_mainDoc, DocX remote)
+        internal void merge_fonts(PackagePart remote_pp, PackagePart local_pp, XDocument remote_mainDoc, DocX remote)
         {
             // Add each remote font to this document.
             IEnumerable<XElement> remote_fonts = remote.fontTable.Root.Elements(XName.Get("font", DocX.w.NamespaceName));
@@ -1758,7 +1758,7 @@ namespace Novacode
             }
         }
 
-        private void merge_styles(PackagePart remote_pp, PackagePart local_pp, XDocument remote_mainDoc, DocX remote, XDocument remote_footnotes, XDocument remote_endnotes)
+        internal void merge_styles(PackagePart remote_pp, PackagePart local_pp, XDocument remote_mainDoc, DocX remote, XDocument remote_footnotes, XDocument remote_endnotes)
         {
             Dictionary<String, String> local_styles = new Dictionary<string, string>();
             foreach (XElement local_style in styles.Root.Elements(XName.Get("style", DocX.w.NamespaceName)))
@@ -1881,7 +1881,7 @@ namespace Novacode
             }
         }
 
-        protected void clonePackageRelationship(DocX remote_document, PackagePart pp, XDocument remote_mainDoc)
+        internal void clonePackageRelationship(DocX remote_document, PackagePart pp, XDocument remote_mainDoc)
         {
             string url = pp.Uri.OriginalString.Replace("/", "");
             var remote_rels = remote_document.mainPart.GetRelationships();
@@ -1918,7 +1918,7 @@ namespace Novacode
             }
         }
 
-        protected PackagePart clonePackagePart(PackagePart pp)
+        internal PackagePart clonePackagePart(PackagePart pp)
         {
             PackagePart new_pp = package.CreatePart(pp.Uri, pp.ContentType, CompressionOption.Normal);
 

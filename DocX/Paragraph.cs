@@ -19,6 +19,325 @@ namespace Novacode
     public class Paragraph : InsertBeforeOrAfter
     {
 
+        public void InsertDocumentBefore(DocX remote_document)
+        {
+            InsertDocument(remote_document, 0);
+        }
+        public void InsertDocumentAfter(DocX remote_document)
+        {
+            InsertDocument(remote_document);
+        }
+
+        public void InsertDocument(DocX remote_document, int index=-1)
+        {
+            XDocument remote_mainDoc = new XDocument(remote_document.mainDoc);
+
+            XDocument remote_footnotes = null;
+            if (remote_document.footnotes != null)
+                remote_footnotes = new XDocument(remote_document.footnotes);
+
+            XDocument remote_endnotes = null;
+            if (remote_document.endnotes != null)
+                remote_endnotes = new XDocument(remote_document.endnotes);
+
+            // Remove all header and footer references.
+            remote_mainDoc.Descendants(XName.Get("headerReference", DocX.w.NamespaceName)).Remove();
+            remote_mainDoc.Descendants(XName.Get("footerReference", DocX.w.NamespaceName)).Remove();
+
+            // Get the body of the remote document.
+            XElement remote_body = remote_mainDoc.Root.Element(XName.Get("body", DocX.w.NamespaceName));
+
+            // Every file that is missing from the local document will have to be copied, every file that already exists will have to be merged.
+            PackagePartCollection ppc = remote_document.package.GetParts();
+
+            List<String> ignoreContentTypes = new List<string>
+            {
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml",
+                "application/vnd.openxmlformats-package.core-properties+xml",
+                "application/vnd.openxmlformats-officedocument.extended-properties+xml",
+                "application/vnd.openxmlformats-package.relationships+xml",
+            };
+
+            List<String> imageContentTypes = new List<string>
+            {
+                "image/jpeg",
+                "image/jpg",
+                "image/png",
+                "image/bmp",
+                "image/gif",
+                "image/tiff",
+                "image/icon",
+                "image/pcx",
+                "image/emf",
+                "image/wmf"
+            };
+            // Check if each PackagePart pp exists in this document.
+            foreach (PackagePart remote_pp in ppc)
+            {
+                if (ignoreContentTypes.Contains(remote_pp.ContentType) || imageContentTypes.Contains(remote_pp.ContentType))
+                    continue;
+
+                // If this external PackagePart already exits then we must merge them.
+                if (Document.package.PartExists(remote_pp.Uri))
+                {
+                    PackagePart local_pp = Document.package.GetPart(remote_pp.Uri);
+                    switch (remote_pp.ContentType)
+                    {
+                        case "application/vnd.openxmlformats-officedocument.custom-properties+xml":
+                            Document.merge_customs(remote_pp, local_pp, remote_mainDoc);
+                            break;
+
+                        // Merge footnotes (and endnotes) before merging styles, then set the remote_footnotes to the just updated footnotes
+                        case "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml":
+                            Document.merge_footnotes(remote_pp, local_pp, remote_mainDoc, remote_document, remote_footnotes);
+                            remote_footnotes = Document.footnotes;
+                            break;
+
+                        case "application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml":
+                            Document.merge_endnotes(remote_pp, local_pp, remote_mainDoc, remote_document, remote_endnotes);
+                            remote_endnotes = Document.endnotes;
+                            break;
+
+                        case "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml":
+                            Document.merge_styles(remote_pp, local_pp, remote_mainDoc, remote_document, remote_footnotes, remote_endnotes);
+                            break;
+
+                        // Merge styles after merging the footnotes, so the changes will be applied to the correct document/footnotes
+                        case "application/vnd.ms-word.stylesWithEffects+xml":
+                            Document.merge_styles(remote_pp, local_pp, remote_mainDoc, remote_document, remote_footnotes, remote_endnotes);
+                            break;
+
+                        case "application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml":
+                            Document.merge_fonts(remote_pp, local_pp, remote_mainDoc, remote_document);
+                            break;
+
+                        case "application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml":
+                            Document.merge_numbering(remote_pp, local_pp, remote_mainDoc, remote_document);
+                            break;
+
+                        default:
+                            break;
+                    }
+                }
+
+                // If this external PackagePart does not exits in the internal document then we can simply copy it.
+                else
+                {
+                    var packagePart = Document.clonePackagePart(remote_pp);
+                    switch (remote_pp.ContentType)
+                    {
+                        case "application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml":
+                            Document.endnotesPart = packagePart;
+                            Document.endnotes = remote_endnotes;
+                            break;
+
+                        case "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml":
+                            Document.footnotesPart = packagePart;
+                            Document.footnotes = remote_footnotes;
+                            break;
+
+                        case "application/vnd.openxmlformats-officedocument.custom-properties+xml":
+                            break;
+
+                        case "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml":
+                            Document.stylesPart = packagePart;
+                            using (TextReader tr = new StreamReader(Document.stylesPart.GetStream()))
+                                Document.styles = XDocument.Load(tr);
+                            break;
+
+                        case "application/vnd.ms-word.stylesWithEffects+xml":
+                            Document.stylesWithEffectsPart = packagePart;
+                            using (TextReader tr = new StreamReader(Document.stylesWithEffectsPart.GetStream()))
+                                Document.stylesWithEffects = XDocument.Load(tr);
+                            break;
+
+                        case "application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml":
+                            Document.fontTablePart = packagePart;
+                            using (TextReader tr = new StreamReader(Document.fontTablePart.GetStream()))
+                                Document.fontTable = XDocument.Load(tr);
+                            break;
+
+                        case "application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml":
+                            Document.numberingPart = packagePart;
+                            using (TextReader tr = new StreamReader(Document.numberingPart.GetStream()))
+                                Document.numbering = XDocument.Load(tr);
+                            break;
+
+                    }
+
+                    Document.clonePackageRelationship(remote_document, remote_pp, remote_mainDoc);
+                }
+            }
+
+            foreach (var hyperlink_rel in remote_document.mainPart.GetRelationshipsByType("http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"))
+            {
+                var old_rel_Id = hyperlink_rel.Id;
+                var new_rel_Id = mainPart.CreateRelationship(hyperlink_rel.TargetUri, hyperlink_rel.TargetMode, hyperlink_rel.RelationshipType).Id;
+                var hyperlink_refs = remote_mainDoc.Descendants(XName.Get("hyperlink", DocX.w.NamespaceName));
+                foreach (var hyperlink_ref in hyperlink_refs)
+                {
+                    XAttribute a0 = hyperlink_ref.Attribute(XName.Get("id", DocX.r.NamespaceName));
+                    if (a0 != null && a0.Value == old_rel_Id)
+                    {
+                        a0.SetValue(new_rel_Id);
+                    }
+                }
+            }
+
+            ////ole object links
+            foreach (var oleObject_rel in remote_document.mainPart.GetRelationshipsByType("http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject"))
+            {
+                var old_rel_Id = oleObject_rel.Id;
+                var new_rel_Id = mainPart.CreateRelationship(oleObject_rel.TargetUri, oleObject_rel.TargetMode, oleObject_rel.RelationshipType).Id;
+                var oleObject_refs = remote_mainDoc.Descendants(XName.Get("OLEObject", "urn:schemas-microsoft-com:office:office"));
+                foreach (var oleObject_ref in oleObject_refs)
+                {
+                    XAttribute a0 = oleObject_ref.Attribute(XName.Get("id", DocX.r.NamespaceName));
+                    if (a0 != null && a0.Value == old_rel_Id)
+                    {
+                        a0.SetValue(new_rel_Id);
+                    }
+                }
+            }
+
+
+            foreach (PackagePart remote_pp in ppc)
+            {
+                if (imageContentTypes.Contains(remote_pp.ContentType))
+                {
+                    Document.merge_images(remote_pp, remote_document, remote_mainDoc, remote_pp.ContentType);
+                }
+            }
+
+            if (index == -1)
+                this.Xml.AddAfterSelf(remote_body.Elements());
+            else
+            if (index == 0)
+                this.Xml.AddBeforeSelf(remote_body.Elements());
+            else
+            {
+                {
+                    // Get the first run effected by this Insert
+                    Run run = GetFirstRunEffectedByEdit(index);
+
+                    if (run == null)
+                    {
+                        // Add to end
+                        this.Xml.AddAfterSelf(remote_body.Elements());
+                    }
+                    else
+                    {
+                        XElement[] splitRun = Run.SplitRun(run, index);
+                        // Replace the origional run.
+
+                        var after_run_nodes = run.Xml.Parent.DescendantNodes().Where(p => p.Parent == run.Xml.Parent).SkipWhile(p => !p.IsAfter(run.Xml)).ToList();
+
+                        run.Xml.ReplaceWith(splitRun[0]);
+
+                        //удаление того что следует после run с позицией
+                        after_run_nodes.ForEach(p => p.Remove());
+                        
+                        //добавление части run, того, что следует непосредственно после позиции
+                        if (splitRun[1] != null)
+                            after_run_nodes.Insert(0, splitRun[1]);
+
+
+                        // after_run_nodes содержит то что шло после позиции в параграфе
+
+                        var remote_body_elements = remote_body.Elements();
+
+                        var first_node = remote_body_elements.FirstOrDefault();
+                        if (first_node != null && first_node.Name == XName.Get("p", DocX.w.NamespaceName))
+                        {
+                            var first_paragraph_elements = first_node.Elements().SkipWhile(p => p.Name == XName.Get("pPr", DocX.w.NamespaceName)).ToList();
+                            //добавление элементов параграфа после Run с позицией
+                            run.Xml.AddAfterSelf(first_paragraph_elements);
+
+                            remote_body_elements = remote_body_elements.Skip(1);
+                        }
+
+                        var last_node = remote_body_elements.LastOrDefault() as XElement;
+                        if (last_node != null && last_node.Name == XName.Get("sectPr", DocX.w.NamespaceName))
+                        {
+                            //задана section, нужно преобразовать в параграф
+                            Paragraph sectionParagraph = new Paragraph(Document, new XElement(DocX.w + "p"), 0);
+                            sectionParagraph.Xml.Add(last_node);
+                            var last_node2 = last_node.PreviousNode as XElement;
+                            last_node.ReplaceWith(sectionParagraph.Xml);
+                            last_node = last_node2;
+                        }
+
+                        if (last_node != null && last_node.Name == XName.Get("p", DocX.w.NamespaceName))
+                        {
+                            last_node.Add(splitRun[1]);
+                            last_node.Add(after_run_nodes);
+                            this.Xml.AddAfterSelf(remote_body_elements);
+                        }
+                        else
+                        {
+                            Paragraph newParagraph = new Paragraph(Document, new XElement(DocX.w + "p"), this.endIndex + 1);
+                            newParagraph.Xml.Add(splitRun[1]);
+                            newParagraph.Xml.Add(after_run_nodes);
+
+                            var elems = remote_body_elements.ToList();
+                            elems.Add(newParagraph.Xml);
+                            this.Xml.AddAfterSelf(remote_body_elements);
+                        }
+                    }
+                }
+
+            }
+
+            /*
+                        // Add the remote documents contents to this document.
+                        XElement local_body = Document.mainDoc.Root.Element(XName.Get("body", DocX.w.NamespaceName));
+                        if (append)
+                            local_body.Add(remote_body.Elements());
+                        else
+                            local_body.AddFirst(remote_body.Elements());
+            */
+
+
+
+
+            // Copy any missing root attributes to the local document.
+            foreach (XAttribute a in remote_mainDoc.Root.Attributes())
+            {
+                if (Document.mainDoc.Root.Attribute(a.Name) == null)
+                {
+                    Document.mainDoc.Root.SetAttributeValue(a.Name, a.Value);
+                }
+            }
+
+
+
+            int id = 0;
+            //            var local_docPrs = Document.mainDoc.Root.Descendants(XName.Get("docPr", DocX.wp.NamespaceName));
+            var local_docPrs = this.Xml.Parent.Descendants(XName.Get("docPr", DocX.wp.NamespaceName)).TakeWhile(p => p.IsBefore(this.Xml));
+            foreach (var local_docPr in local_docPrs)
+            {
+                XAttribute a_id = local_docPr.Attribute(XName.Get("id"));
+                int a_id_value;
+                if (a_id != null && int.TryParse(a_id.Value, out a_id_value))
+                    if (a_id_value > id)
+                        id = a_id_value;
+            }
+            id++;
+
+            // docPr must be sequential
+            //            var docPrs = remote_body.Descendants(XName.Get("docPr", DocX.wp.NamespaceName));
+            var docPrs = this.Xml.Parent.Descendants(XName.Get("docPr", DocX.wp.NamespaceName)).SkipWhile(p => p.IsBefore(this.Xml));
+            foreach (var docPr in docPrs)
+            {
+                docPr.SetAttributeValue(XName.Get("id"), id);
+                id++;
+            }
+
+
+        }
+
         // The Append family of functions use this List to apply style.
         internal List<XElement> runs;
 

@@ -29,7 +29,7 @@ namespace Novacode
         /// This is a reference to the DocX object that this element belongs to.
         /// Every DocX element is connected to a document.
         /// </summary>
-        internal DocX Document { get; set; }
+        public DocX Document { get; set; }
         /// <summary>
         /// Store both the document and xml so that they can be accessed by derived types.
         /// </summary>

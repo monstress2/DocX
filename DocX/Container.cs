@@ -121,17 +121,12 @@ namespace Novacode
         public bool RemoveParagraphAt(int index)
         {
             int i = 0;
-            foreach (var paragraph in Xml.Descendants(DocX.w + "p"))
+            var paragraph = Xml.Descendants(DocX.w + "p").Skip(index).FirstOrDefault();
+            if (paragraph != null)
             {
-                if (i == index)
-                {
-                    paragraph.Remove();
-                    return true;
-                }
-                ++i;
- 
+                paragraph.Remove();
+                return true;
             }
- 
             return false;
         }
 

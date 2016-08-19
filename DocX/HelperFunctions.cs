@@ -13,7 +13,7 @@ using System.Xml;
 
 namespace Novacode
 {
-    internal static class HelperFunctions
+    public static class HelperFunctions
     {
         public const string DOCUMENT_DOCUMENTTYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
         public const string TEMPLATE_DOCUMENTTYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml";
@@ -511,7 +511,7 @@ namespace Novacode
             return list;
         }
 
-        internal static void RenumberIDs(DocX document)
+        public static void RenumberIDs(DocX document)
         {
             IEnumerable<XAttribute> trackerIDs =
                             (from d in document.mainDoc.Descendants()

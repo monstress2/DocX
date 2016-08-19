@@ -277,7 +277,7 @@ namespace Novacode
                         }
                         else
                         {
-                            Paragraph newParagraph = new Paragraph(Document, new XElement(DocX.w + "p"), this.endIndex + 1);
+                            Paragraph newParagraph = new Paragraph(Document, new XElement(DocX.w + "p"), this.endIndex);
                             newParagraph.Xml.Add(splitRun[1]);
                             newParagraph.Xml.Add(after_run_nodes);
 
@@ -4001,7 +4001,8 @@ namespace Novacode
         /// <param name="index">The position to begin deleting characters.</param>
         /// <param name="count">The number of characters to delete</param>
         /// <param name="trackChanges">Track changes</param>
-        public void RemoveText(int index, int count, bool trackChanges = false)
+        /// <param name="renumberids">Inner IDs Renumerate</param>
+        public void RemoveText(int index, int count, bool trackChanges = false, bool renumberids=true)
         {
             // Timestamp to mark the start of insert
             DateTime now = DateTime.Now;
@@ -4026,20 +4027,27 @@ namespace Novacode
                             XElement[] splitEditAfter = SplitEdit(parentElement, index + min, EditType.del);
 
                             XElement temp = SplitEdit(splitEditBefore[1], index + min, EditType.del)[0];
-                            object middle = CreateEdit(EditType.del, remove_datetime, temp.Elements());
-                            processed += GetElementTextLength(middle as XElement);
+                            if (trackChanges)
+                            {
+                                object middle = CreateEdit(EditType.del, remove_datetime, temp.Elements());
+                                processed += GetElementTextLength(middle as XElement);
 
-                            if (!trackChanges)
-                                middle = null;
-
-                            parentElement.ReplaceWith
-                            (
-                                splitEditBefore[0],
-                                middle,
-                                splitEditAfter[1]
-                            );
-
-                            processed += GetElementTextLength(middle as XElement);
+                                parentElement.ReplaceWith
+                                (
+                                    splitEditBefore[0],
+                                    middle,
+                                    splitEditAfter[1]
+                                );
+                            }
+                            else
+                            {
+                                processed += min;
+                                parentElement.ReplaceWith
+                                (
+                                    splitEditBefore[0],
+                                    splitEditAfter[1]
+                                );
+                            }
                             break;
                         }
 
@@ -4063,20 +4071,30 @@ namespace Novacode
                             //int min = Math.Min(index + processed + (count - processed), run.EndIndex);
                             int min = Math.Min(index + (count - processed), run.EndIndex);
                             XElement[] splitRunAfter = Run.SplitRun(run, min, EditType.del);
-
-                            object middle = CreateEdit(EditType.del, remove_datetime, new List<XElement>() { Run.SplitRun(new Run(Document, splitRunBefore[1], run.StartIndex + GetElementTextLength(splitRunBefore[0])), min, EditType.del)[0] });
-                            processed += GetElementTextLength(middle as XElement);
-
-                            if (!trackChanges)
-                                middle = null;
-
-                            run.Xml.ReplaceWith
-                            (
-                                splitRunBefore[0],
-                                middle,
-                                splitRunAfter[1]
-                            );
-
+                            if (trackChanges)
+                            {
+                                object middle = CreateEdit(EditType.del, remove_datetime,
+                                    new List<XElement>() {
+                                    Run.SplitRun(
+                                        new Run(Document, splitRunBefore[1], run.StartIndex + GetElementTextLength(splitRunBefore[0])), min, EditType.del)[0]
+                                    });
+                                processed += GetElementTextLength(middle as XElement);
+                                run.Xml.ReplaceWith
+                                (
+                                    splitRunBefore[0],
+                                    middle,
+                                    splitRunAfter[1]
+                                );
+                            }
+                            else
+                            {
+                                processed += min-index;
+                                run.Xml.ReplaceWith
+                                (
+                                    splitRunBefore[0],
+                                    splitRunAfter[1]
+                                );
+                            }
                             break;
                         }
                 }
@@ -4095,7 +4113,8 @@ namespace Novacode
             }
             while (processed < count);
 
-            HelperFunctions.RenumberIDs(Document);
+            if (renumberids)
+                HelperFunctions.RenumberIDs(Document);
         }
 
 
@@ -4123,9 +4142,10 @@ namespace Novacode
         /// <seealso cref="Paragraph.InsertText(string, bool, Formatting)"/>
         /// <param name="index">The position to begin deleting characters.</param>
         /// <param name="trackChanges">Track changes</param>
-        public void RemoveText(int index, bool trackChanges = false)
+        /// <param name="renumberids">Inner IDs Renumerate</param>
+        public void RemoveText(int index, bool trackChanges = false, bool renumberids = true)
         {
-            RemoveText(index, Text.Length - index, trackChanges);
+            RemoveText(index, Text.Length - index, trackChanges, renumberids);
         }
 
 		/// <summary>
